@@ -26,14 +26,13 @@ class DeliveryDate(AsyncAttrs, Base):
     delivery_date = Column(Date, nullable=False)
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
-# НОВЫЕ МОДЕЛИ
 class Order(AsyncAttrs, Base):
     __tablename__ = "orders"
     id = Column(Integer, primary_key=True, index=True)
     delivery_date = Column(Date, nullable=False)
     delivery_time = Column(String, nullable=False)
     delivery_address = Column(Text, nullable=False)
-    status = Column(String, default="pending")  # pending, onWay, delivered, cancelled
+    status = Column(String, default="pending")  
     total_price = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=func.now())
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
@@ -47,3 +46,4 @@ class OrderItem(AsyncAttrs, Base):
     quantity = Column(Integer, nullable=False)
     price = Column(Integer, nullable=False)
     order = relationship("Order", back_populates="items")
+
