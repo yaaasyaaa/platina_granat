@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ПЛАТИНОВЫЙ ГРАНАТ</title>
+    <link rel="icon" href="static/imgs/favicon.png" type="image/png">
+    <link rel="apple-touch-icon" href="static/imgs/favicon.png">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #E5E4E2; font-family: sans-serif; }
+        .orange-bg { background-color: #F34723 !important; }
+        .orange-text { color: #F34723 !important; }
+        .hover-orange:hover { background-color: #d63e1f !important; }
+        .rounded-card { border-radius: 12px; overflow: hidden; }
+        .shadow-card { box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        .modal-overlay { background-color: rgba(0,0,0,0.5); }
+        .active-tab { background-color: rgba(243, 71, 35, 0.15) !important; color: #F34723 !important; font-weight: 600; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div id="root" class="min-h-screen"></div>
+
+    <!-- React и Babel -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // API конфигурация
+        const API_BASE_URL = "http://localhost:8000"; // Фиксированный URL для разработки
+
+        const App = () => {
+            const [selectedProduct, setSelectedProduct] = useState(null);
+            const [cart, setCart] = useState([]);
+            const [showCart, setShowCart] = useState(false);
+            const [deliveryDate, setDeliveryDate] = useState('');
+            const [deliveryTime, setDeliveryTime] = useState('');
+            const [deliveryAddress, setDeliveryAddress] = useState('');
+            const [activeTab, setActiveTab] = useState('products');
+            const [orders, setOrders] = useState([]);
+            const [editingOrder, setEditingOrder] = useState(null);
+            const [products, setProducts] = useState([]);
+            const [loading, setLoading] = useState(true);
+
+            // Статические изображения для продуктов (запасной вариант)
+            const staticProductImages = {
+                1: `${API_BASE_URL}/static/imgs/mini.png`,
+                2: `${API_BASE_URL}/static/imgs/standart.png`,
+                3: `${API_BASE_URL}/static/imgs/max.png`
+            };
+            // Загрузка данных при монтировании
+            useEffect(() => {
+                fetchProducts();
+                fetchOrders();
+            }, []);
+
+            // Загрузка продуктов с сервера
+            const fetchProducts = async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/products/`);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    const data = await response.json();
+
+                    // Добавляем URL изображений если их нет
+                    const processedProducts = data.map(product => ({
+                        ...product,
+                        image: product.image_url || staticProductImages[product.id] || `${API_BASE_URL}/static/imgs/default.png`
+                    }));
+
+                    setProducts(processedProducts);
+                } catch (error) {
+                    console.error('Error fetching products:', error);
+                    // Если API не работает, используем статические данные
+                    // Если API не работает, используем статические данные
+setProducts([
+    {
+        id: 1,
+        name: 'Платиновый гранат - мини',
+        price: 1500,
+        image: `${API_BASE_URL}/static/imgs/mini.png`,
+        description: 'Концентрированная сыворотка для чувствительной кожи.'
+    },
+    {
+        id: 2,
+        name: 'Платиновый гранат - стандарт',
+        price: 3200,
+        image: `${API_BASE_URL}/static/imgs/standart.png`,
+        description: 'Универсальная сыворотка для ежедневного ухода.'
+    },
+    {
+        id: 3,
+        name: 'Платиновый гранат - максимум',
+        price: 5800,
+        image: `${API_BASE_URL}/static/imgs/max.png`,
+        description: 'Роскошная сыворотка с экстрактом граната и платины.'
+    }
+]);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            // Загрузка заказов с сервера
+            const fetchOrders = async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/orders/`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        setOrders(data);
+                    }
+                } catch (error) {
+                    console.error('Error fetching orders:', error);
+                }
+            };
+
+            // Функция для получения доступных дат доставки
+            const getAvailableDates = () => {
+                const dates = [];
+                const today = new Date();
+                for (let i = 1; i <= 7; i++) {
+                    const date = new Date(today);
+                    date.setDate(today.getDate() + i);
+                    dates.push({
+                        value: date.toISOString().split('T')[0],
+                        label: date.toLocaleDateString('ru-RU', {
+                            weekday: 'short',
+                            day: 'numeric',
+                            month: 'short'
+                        })
+                    });
+                }
+                return dates;
+            };
+
+            const deliveryTimes = [
+                { value: "10:00", label: "10:00" },
+                { value: "14:00", label: "14:00" },
+                { value: "18:00", label: "18:00" }
+            ];
+
+            const addToCart = (product) => {
+                setCart(prev => {
+                    const existing = prev.find(item => item.id === product.id);
+                    if (existing) {
+                        return prev.map(item =>
+                            item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+                        );
+                    }
+                    return [...prev, { ...product, quantity: 1 }];
+                });
+                setSelectedProduct(null);
+            };
+
+            const removeFromCart = (id) => {
+                setCart(prev => prev.filter(item => item.id !== id));
+            };
+
+            const updateQuantity = (id, quantity) => {
+                if (quantity < 1) return;
+                setCart(prev => prev.map(item =>
+                    item.id === id ? { ...item, quantity } : item
+                ));
+            };
+
+            // Функция создания заказа на сервере
+            const placeOrder = async () => {
+                if (!deliveryDate || !deliveryTime || !deliveryAddress) {
+                    alert('Заполните все поля доставки');
+                    return;
+                }
+
+                try {
+                    const orderData = {
+                        delivery_date: deliveryDate,
+                        delivery_time: deliveryTime,
+                        delivery_address: deliveryAddress,
+                        status: 'pending',
+                        total_price: cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
+                        items: cart.map(item => ({
+                            product_id: item.id,
+                            product_name: item.name,
+                            quantity: item.quantity,
+                            price: item.price
+                        }))
+                    };
+
+                    const response = await fetch(`${API_BASE_URL}/api/orders/`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(orderData)
+                    });
+
+                    if (response.ok) {
+                        const newOrder = await response.json();
+
+                        // Очищаем корзину
+                        setCart([]);
+                        setDeliveryDate('');
+                        setDeliveryTime('');
+                        setDeliveryAddress('');
+                        setShowCart(false);
+
+                        // Обновляем список заказов
+                        setOrders(prev => [newOrder, ...prev]);
+
+                        alert('Заказ успешно создан!');
+                    } else {
+                        const error = await response.text();
+                        throw new Error(error || 'Ошибка при создании заказа');
+                    }
+                } catch (error) {
+                    console.error('Error creating order:', error);
+                    alert(`Ошибка: ${error.message}`);
+                }
+            };
+
+            // Функция редактирования заказа
+            const startEditOrder = (order) => {
+                setEditingOrder({
+                    ...order,
+                    delivery_date: order.delivery_date
+                });
+            };
+
+            // Функция сохранения изменений заказа на сервере
+            const saveEditedOrder = async () => {
+                if (!editingOrder.delivery_date || !editingOrder.delivery_time || !editingOrder.delivery_address) {
+                    alert('Заполните все поля');
+                    return;
+                }
+
+                try {
+                    const updateData = {
+                        delivery_date: editingOrder.delivery_date,
+                        delivery_time: editingOrder.delivery_time,
+                        delivery_address: editingOrder.delivery_address
+                    };
+
+                    const response = await fetch(`${API_BASE_URL}/api/orders/${editingOrder.id}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(updateData)
+                    });
+
+                    if (response.ok) {
+                        const updatedOrder = await response.json();
+
+                        // Обновляем список заказов
+                        setOrders(prev => prev.map(order =>
+                            order.id === updatedOrder.id ? updatedOrder : order
+                        ));
+
+                        setEditingOrder(null);
+                        alert('Заказ успешно обновлен!');
+                    } else {
+                        const error = await response.text();
+                        throw new Error(error || 'Ошибка при обновлении заказа');
+                    }
+                } catch (error) {
+                    console.error('Error updating order:', error);
+                    alert(`Ошибка: ${error.message}`);
+                }
+            };
+
+            // Функция отмены заказа на сервере
+            const cancelOrder = async (orderId) => {
+                if (!confirm('Вы уверены, что хотите отменить этот заказ?')) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/orders/${orderId}`, {
+                        method: 'DELETE'
+                    });
+
+                    if (response.ok) {
+                        // Обновляем статус локально
+                        setOrders(prev => prev.map(order =>
+                            order.id === orderId ? { ...order, status: 'cancelled' } : order
+                        ));
+
+                        alert('Заказ отменен!');
+                    } else {
+                        const error = await response.text();
+                        throw new Error(error || 'Ошибка при отмене заказа');
+                    }
+                } catch (error) {
+                    console.error('Error cancelling order:', error);
+                    alert(`Ошибка: ${error.message}`);
+                }
+            };
+
+            if (loading) {
+                return React.createElement('div', { className: "flex justify-center items-center min-h-screen" },
+                    React.createElement('div', { className: "text-center" },
+                        React.createElement('div', { className: "animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto" }),
+                        React.createElement('p', { className: "mt-4 text-gray-600" }, "Загрузка...")
+                    )
+                );
+            }
+
+            return React.createElement('div', { className: "min-h-screen", style: { backgroundColor: '#E5E4E2' } },
+                // Header
+                React.createElement('header', { className: "bg-white shadow py-4" },
+                    React.createElement('div', { className: "container mx-auto px-4" },
+                        React.createElement('div', { className: "flex justify-between items-center" },
+                            React.createElement('div', { className: "flex items-center space-x-3" },
+                                React.createElement('img', {
+                                        src: `${API_BASE_URL}/static/imgs/logo.png`,
+                                        alt: 'Платиновый Гранат',
+                                        className: "h-12 w-12"
+                                    }),
+                                React.createElement('h1', { className: "text-2xl font-bold" }, "ПЛАТИНОВЫЙ ГРАНАТ"),
+                                React.createElement('div', { className: "hidden md:flex space-x-4" },
+                                    React.createElement('button', {
+                                        onClick: () => setActiveTab('products'),
+                                        className: `px-4 py-2 rounded-lg transition ${activeTab === 'products' ? 'active-tab' : 'hover:bg-gray-100'}`
+                                    }, "Продукты"),
+                                    React.createElement('button', {
+                                        onClick: () => setActiveTab('orders'),
+                                        className: `px-4 py-2 rounded-lg transition ${activeTab === 'orders' ? 'active-tab' : 'hover:bg-gray-100'}`
+                                    }, "Заказы")
+                                )
+                            ),
+                            React.createElement('button', {
+                                onClick: () => setShowCart(true),
+                                className: "orange-bg text-white p-2 rounded-full relative"
+                            },
+                                React.createElement('svg', {
+                                    className: "w-6 h-6",
+                                    fill: "none",
+                                    stroke: "currentColor",
+                                    viewBox: "0 0 24 24"
+                                },
+                                React.createElement('path', {
+                                    strokeLinecap: "round",
+                                    strokeLinejoin: "round",
+                                    strokeWidth: 2,
+                                    d: "M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
+                                })),
+                                cart.length > 0 && React.createElement('span', {
+                                    className: "absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center"
+                                }, cart.reduce((sum, item) => sum + item.quantity, 0))
+                            )
+                        )
+                    )
+                ),
+
+                // Main Content
+                React.createElement('main', { className: "container mx-auto px-4 py-8" },
+                    activeTab === 'products' && React.createElement('div', null,
+    React.createElement('h2', { className: "text-xl font-bold mb-6" }, "Наши продукты"),
+    products.length === 0 ?
+        React.createElement('p', { className: "text-gray-500 text-center py-8" }, "Нет доступных продуктов") :
+        React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-3 gap-6" },
+            products.map(product =>
+                React.createElement('div', {
+                    key: product.id,
+                    className: "bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-lg transition-shadow",
+                    onClick: () => setSelectedProduct(product)
+                },
+                    React.createElement('div', { className: "flex items-center justify-center h-48 bg-gray-50" },
+                        React.createElement('img', {
+                            src: product.image,
+                            alt: product.name,
+                            className: "max-h-full max-w-full object-contain p-4",
+                            onError: (e) => {
+    // Fallback на статические изображения
+    if (product.name.includes('мини')) {
+        e.target.src = `${API_BASE_URL}/static/imgs/mini.png`;
+    } else if (product.name.includes('стандарт')) {
+        e.target.src = `${API_BASE_URL}/static/imgs/standart.png`;
+    } else if (product.name.includes('максимум')) {
+        e.target.src = `${API_BASE_URL}/static/imgs/max.png`;
+    } else {
+        e.target.src = `${API_BASE_URL}/static/imgs/default.png`;
+    }
+}
+                        })
+                    ),
+                    React.createElement('div', { className: "p-4" },
+                        React.createElement('h3', { className: "font-bold mb-2" }, product.name),
+                        React.createElement('p', { className: "orange-text font-bold" }, `${product.price} ₽`)
+                    )
+                )
+            )
+        )
+),
+
+                    activeTab === 'orders' && React.createElement('div', null,
+                        React.createElement('h2', { className: "text-xl font-bold mb-6" }, "Ваши заказы"),
+                        orders.length === 0 ?
+                            React.createElement('p', { className: "text-gray-500 text-center py-8" }, "Нет активных заказов") :
+                            React.createElement('div', { className: "space-y-6" },
+                                orders.map(order => {
+                                    const statusText = {
+                                        pending: 'Ожидает доставки',
+                                        onWay: 'В пути',
+                                        delivered: 'Доставлен',
+                                        cancelled: 'Отменен'
+                                    }[order.status] || order.status;
+
+                                    const statusColor = {
+                                        pending: 'bg-yellow-100 text-yellow-800',
+                                        onWay: 'bg-blue-100 text-blue-800',
+                                        delivered: 'bg-green-100 text-green-800',
+                                        cancelled: 'bg-red-100 text-red-800'
+                                    }[order.status] || 'bg-gray-100 text-gray-800';
+
+                                    return React.createElement('div', {
+                                        key: order.id,
+                                        className: "bg-white p-6 rounded-lg shadow"
+                                    },
+                                        React.createElement('div', { className: "flex justify-between items-start mb-4" },
+                                            React.createElement('div', null,
+                                                React.createElement('h3', { className: "font-bold text-lg" }, `Заказ #${order.id}`),
+                                                React.createElement('p', { className: "text-sm text-gray-500" },
+                                                    `Создан: ${new Date(order.created_at).toLocaleDateString('ru-RU')}`
+                                                )
+                                            ),
+                                            React.createElement('span', {
+                                                className: `${statusColor} px-3 py-1 rounded-full text-sm font-medium`
+                                            }, statusText)
+                                        ),
+
+                                        React.createElement('div', { className: "mb-4" },
+                                            React.createElement('h4', { className: "font-medium text-gray-700 mb-2" }, "Товары:"),
+                                            React.createElement('ul', { className: "list-disc list-inside space-y-1" },
+                                                order.items.map(item =>
+                                                    React.createElement('li', { key: item.id },
+                                                        `${item.product_name} x${item.quantity} - ${item.price * item.quantity} ₽`
+                                                    )
+                                                )
+                                            )
+                                        ),
+
+                                        React.createElement('div', { className: "mb-4" },
+                                            React.createElement('p', null,
+                                                React.createElement('strong', null, "Дата доставки: "),
+                                                new Date(order.delivery_date).toLocaleDateString('ru-RU')
+                                            ),
+                                            React.createElement('p', null,
+                                                React.createElement('strong', null, "Время доставки: "),
+                                                order.delivery_time
+                                            ),
+                                            React.createElement('p', null,
+                                                React.createElement('strong', null, "Адрес: "),
+                                                order.delivery_address
+                                            ),
+                                            React.createElement('p', null,
+                                                React.createElement('strong', null, "Сумма заказа: "),
+                                                React.createElement('span', { className: "orange-text" }, `${order.total_price} ₽`)
+                                            )
+                                        ),
+
+                                        order.status === 'pending' && React.createElement('div', { className: "flex space-x-3" },
+                                            React.createElement('button', {
+                                                onClick: () => startEditOrder(order),
+                                                className: "orange-bg hover-orange text-white px-4 py-2 rounded-lg transition"
+                                            }, "Изменить доставку"),
+                                            React.createElement('button', {
+                                                onClick: () => cancelOrder(order.id),
+                                                className: "bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition"
+                                            }, "Отменить заказ")
+                                        )
+                                    );
+                                })
+                            )
+                    )
+                ),
+
+                // Product Modal
+                selectedProduct && React.createElement('div', {
+                    className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50",
+                    onClick: () => setSelectedProduct(null)
+                },
+                    React.createElement('div', {
+                        className: "bg-white rounded-lg max-w-md w-full",
+                        onClick: e => e.stopPropagation()
+                    },
+                        React.createElement('div', { className: "p-6" },
+                            React.createElement('div', { className: "flex justify-between items-start mb-4" },
+                                React.createElement('h2', { className: "text-xl font-bold" }, selectedProduct.name),
+                                React.createElement('button', {
+                                    onClick: () => setSelectedProduct(null),
+                                    className: "text-gray-500 hover:text-gray-700"
+                                }, "✕")
+                            ),
+                            React.createElement('div', { className: "flex items-center justify-center h-64 bg-gray-50 mb-4 rounded" },
+                                React.createElement('img', {
+                                    src: selectedProduct.image,
+                                    alt: selectedProduct.name,
+                                    className: "max-h-full max-w-full object-contain p-4",
+
+                                })
+                            ),
+                            React.createElement('p', { className: "text-gray-600 mb-4" }, selectedProduct.description),
+                            React.createElement('div', { className: "flex justify-between items-center" },
+                                React.createElement('span', { className: "text-2xl font-bold orange-text" }, `${selectedProduct.price} ₽`),
+                                React.createElement('button', {
+                                    onClick: () => addToCart(selectedProduct),
+                                    className: "orange-bg hover-orange text-white px-6 py-2 rounded"
+                                }, "В корзину")
+                            )
+                        )
+                    )
+                ),
+
+                // Cart Modal
+                showCart && React.createElement('div', {
+                    className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50",
+                    onClick: () => setShowCart(false)
+                },
+                    React.createElement('div', {
+                        className: "bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto",
+                        onClick: e => e.stopPropagation()
+                    },
+                        React.createElement('div', { className: "p-6" },
+                            React.createElement('div', { className: "flex justify-between items-center mb-6" },
+                                React.createElement('h2', { className: "text-xl font-bold" }, "Корзина"),
+                                React.createElement('button', {
+                                    onClick: () => setShowCart(false),
+                                    className: "text-gray-500 hover:text-gray-700"
+                                }, "✕")
+                            ),
+
+                            cart.length === 0 ?
+                                React.createElement('p', { className: "text-gray-500 text-center py-8" }, "Корзина пуста") :
+                                React.createElement(React.Fragment, null,
+                                    React.createElement('div', { className: "space-y-4 mb-6" },
+                                        cart.map(item =>
+                                            React.createElement('div', {
+                                                key: item.id,
+                                                className: "flex items-center justify-between p-4 bg-gray-50 rounded"
+                                            },
+                                                React.createElement('div', { className: "flex items-center space-x-3" },
+                                                    React.createElement('div', { className: "flex items-center justify-center w-16 h-16 bg-white rounded" },
+                                                        React.createElement('img', {
+                                                            src: item.image,
+                                                            alt: item.name,
+                                                            className: "max-h-full max-w-full object-contain p-1",
+
+                                                        })
+                                                    ),
+                                                    React.createElement('div', null,
+                                                        React.createElement('p', { className: "font-medium" }, item.name),
+                                                        React.createElement('p', { className: "orange-text font-bold" }, `${item.price} ₽`)
+                                                    )
+                                                ),
+                                                React.createElement('div', { className: "flex items-center space-x-2" },
+                                                    React.createElement('button', {
+                                                        onClick: () => updateQuantity(item.id, item.quantity - 1),
+                                                        className: "bg-gray-200 w-8 h-8 rounded flex items-center justify-center hover:bg-gray-300"
+                                                    }, "-"),
+                                                    React.createElement('span', { className: "w-8 text-center" }, item.quantity),
+                                                    React.createElement('button', {
+                                                        onClick: () => updateQuantity(item.id, item.quantity + 1),
+                                                        className: "bg-gray-200 w-8 h-8 rounded flex items-center justify-center hover:bg-gray-300"
+                                                    }, "+"),
+                                                    React.createElement('button', {
+                                                        onClick: () => removeFromCart(item.id),
+                                                        className: "text-red-500 hover:text-red-700 ml-2"
+                                                    }, "🗑️")
+                                                )
+                                            )
+                                        )
+                                    ),
+
+                                    React.createElement('div', { className: "border-t pt-4 mb-6" },
+                                        React.createElement('div', { className: "flex justify-between text-lg font-bold" },
+                                            React.createElement('span', null, "Итого:"),
+                                            React.createElement('span', { className: "orange-text" },
+                                                `${cart.reduce((sum, item) => sum + item.price * item.quantity, 0)} ₽`
+                                            )
+                                        )
+                                    ),
+
+                                    React.createElement('div', { className: "space-y-4 mb-6" },
+                                        React.createElement('div', null,
+                                            React.createElement('label', { className: "block mb-1 font-medium" }, "Дата доставки"),
+                                            React.createElement('select', {
+                                                value: deliveryDate,
+                                                onChange: e => setDeliveryDate(e.target.value),
+                                                className: "w-full border rounded p-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                            },
+                                                React.createElement('option', { value: "" }, "Выберите дату"),
+                                                getAvailableDates().map(date =>
+                                                    React.createElement('option', { key: date.value, value: date.value }, date.label)
+                                                )
+                                            )
+                                        ),
+                                        React.createElement('div', null,
+                                            React.createElement('label', { className: "block mb-1 font-medium" }, "Время доставки"),
+                                            React.createElement('select', {
+                                                value: deliveryTime,
+                                                onChange: e => setDeliveryTime(e.target.value),
+                                                className: "w-full border rounded p-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                            },
+                                                React.createElement('option', { value: "" }, "Выберите время"),
+                                                deliveryTimes.map(time =>
+                                                    React.createElement('option', { key: time.value, value: time.value }, time.label)
+                                                )
+                                            )
+                                        ),
+                                        React.createElement('div', null,
+                                            React.createElement('label', { className: "block mb-1 font-medium" }, "Адрес доставки"),
+                                            React.createElement('textarea', {
+                                                value: deliveryAddress,
+                                                onChange: e => setDeliveryAddress(e.target.value),
+                                                placeholder: "Введите полный адрес доставки...",
+                                                className: "w-full border rounded p-2 focus:outline-none focus:ring-2 focus:ring-orange-500",
+                                                rows: 3
+                                            })
+                                        )
+                                    ),
+
+                                    React.createElement('button', {
+                                        onClick: placeOrder,
+                                        disabled: !deliveryDate || !deliveryTime || !deliveryAddress,
+                                        className: `w-full py-3 rounded font-bold transition ${!deliveryDate || !deliveryTime || !deliveryAddress ? 'bg-gray-300 cursor-not-allowed' : 'orange-bg hover-orange text-white'}`
+                                    }, "Оформить заказ")
+                                )
+                        )
+                    )
+                ),
+
+                // Edit Order Modal
+                editingOrder && React.createElement('div', {
+                    className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50",
+                    onClick: () => setEditingOrder(null)
+                },
+                    React.createElement('div', {
+                        className: "bg-white rounded-lg max-w-md w-full",
+                        onClick: e => e.stopPropagation()
+                    },
+                        React.createElement('div', { className: "p-6" },
+                            React.createElement('div', { className: "flex justify-between items-center mb-6" },
+                                React.createElement('h2', { className: "text-xl font-bold" }, "Редактировать доставку"),
+                                React.createElement('button', {
+                                    onClick: () => setEditingOrder(null),
+                                    className: "text-gray-500 hover:text-gray-700"
+                                }, "✕")
+                            ),
+
+                            React.createElement('div', { className: "space-y-4 mb-6" },
+                                React.createElement('div', null,
+                                    React.createElement('label', { className: "block mb-1 font-medium" }, "Дата доставки"),
+                                    React.createElement('select', {
+                                        value: editingOrder.delivery_date,
+                                        onChange: e => setEditingOrder({...editingOrder, delivery_date: e.target.value}),
+                                        className: "w-full border rounded p-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                    },
+                                        React.createElement('option', { value: "" }, "Выберите дату"),
+                                        getAvailableDates().map(date =>
+                                            React.createElement('option', { key: date.value, value: date.value }, date.label)
+                                        )
+                                    )
+                                ),
+                                React.createElement('div', null,
+                                    React.createElement('label', { className: "block mb-1 font-medium" }, "Время доставки"),
+                                    React.createElement('select', {
+                                        value: editingOrder.delivery_time,
+                                        onChange: e => setEditingOrder({...editingOrder, delivery_time: e.target.value}),
+                                        className: "w-full border rounded p-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                    },
+                                        React.createElement('option', { value: "" }, "Выберите время"),
+                                        deliveryTimes.map(time =>
+                                            React.createElement('option', { key: time.value, value: time.value }, time.label)
+                                        )
+                                    )
+                                ),
+                                React.createElement('div', null,
+                                    React.createElement('label', { className: "block mb-1 font-medium" }, "Адрес доставки"),
+                                    React.createElement('textarea', {
+                                        value: editingOrder.delivery_address,
+                                        onChange: e => setEditingOrder({...editingOrder, delivery_address: e.target.value}),
+                                        placeholder: "Введите полный адрес доставки...",
+                                        className: "w-full border rounded p-2 focus:outline-none focus:ring-2 focus:ring-orange-500",
+                                        rows: 3
+                                    })
+                                )
+                            ),
+
+                            React.createElement('div', { className: "flex space-x-3" },
+                                React.createElement('button', {
+                                    onClick: saveEditedOrder,
+                                    className: "orange-bg hover-orange text-white px-6 py-2 rounded-lg transition flex-1"
+                                }, "Сохранить"),
+                                React.createElement('button', {
+                                    onClick: () => setEditingOrder(null),
+                                    className: "bg-gray-300 hover:bg-gray-400 text-gray-800 px-6 py-2 rounded-lg transition flex-1"
+                                }, "Отмена")
+                            )
+                        )
+                    )
+                )
+            );
+        };
+
+        ReactDOM.render(React.createElement(App), document.getElementById('root'));
+    </script>
+</body>
+</html>
